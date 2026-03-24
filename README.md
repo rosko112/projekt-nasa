@@ -1,36 +1,122 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NASA Simple Auth App (Next.js)
 
-## Getting Started
+Simple Next.js app with:
+- Signup/login using a JSON file as storage
+- JWT session stored in an `httpOnly` cookie
+- Protected NASA endpoint that returns random space data (APOD)
 
-First, run the development server:
+## Stack
+- Next.js 16 (App Router)
+- React 19
+- TypeScript
+- Tailwind CSS
+- File-based data storage (`data/users.json`)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Features
+- `POST /api/auth/signup`: create user with `email` + `password`
+- `POST /api/auth/login`: verify user and set JWT cookie (`session`)
+- `GET /api/nasa/fact`: protected endpoint, returns random NASA APOD entry
+- Frontend page with:
+  - signup/login form
+  - button to generate a random space fact after login
+
+## Project Structure
+- `app/page.tsx`: UI (signup/login + generate fact)
+- `app/api/auth/signup/route.ts`: signup API
+- `app/api/auth/login/route.ts`: login API
+- `app/api/nasa/fact/route.ts`: protected NASA API proxy
+- `lib/user-store.ts`: read/write users in JSON file
+- `lib/session.ts`: JWT creation and verification
+- `data/users.json`: local user storage
+
+## Environment Variables
+Create `.env.local` in project root:
+
+```env
+NASA_API_KEY=YOUR_NASA_API_KEY
+JWT_SECRET=CHANGE_THIS_TO_A_LONG_RANDOM_SECRET
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Notes:
+- `NASA_API_KEY` is required for `/api/nasa/fact`
+- `JWT_SECRET` signs/verifies the JWT in the `session` cookie
+- Do not commit real keys/secrets to git
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Run Locally
+```bash
+pnpm install
+pnpm dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open: `http://localhost:3000`
 
-## Learn More
+## API Reference
 
-To learn more about Next.js, take a look at the following resources:
+### 1) Signup
+`POST /api/auth/signup`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Body:
+```json
+{
+  "email": "test@example.com",
+  "password": "secret123"
+}
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Responses:
+- `200` `{ "ok": true }`
+- `400` missing fields
+- `409` email already exists
 
-## Deploy on Vercel
+### 2) Login
+`POST /api/auth/login`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Body:
+```json
+{
+  "email": "test@example.com",
+  "password": "secret123"
+}
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Responses:
+- `200` `{ "ok": true, "email": "test@example.com" }` + `Set-Cookie: session=...`
+- `400` missing fields
+- `401` invalid credentials
+
+### 3) Get NASA Fact (Protected)
+`GET /api/nasa/fact`
+
+Requires valid `session` cookie from login.
+
+Responses:
+- `200`:
+```json
+{
+  "title": "Some APOD title",
+  "date": "2026-03-24",
+  "explanation": "....",
+  "url": "https://...",
+  "mediaType": "image"
+}
+```
+- `401` unauthorized (no/invalid/expired JWT)
+- `500` missing `NASA_API_KEY`
+- `502` NASA API request failed
+
+## Postman Quick Test
+1. `POST /api/auth/signup`
+2. `POST /api/auth/login` and confirm `Set-Cookie` has `session=`
+3. `GET /api/nasa/fact` (authenticated) -> expect `200`
+4. Clear cookie jar, call `GET /api/nasa/fact` -> expect `401`
+
+## Important Security Note
+This is intentionally simple for learning/demo purposes:
+- Passwords are currently stored in plain text in `data/users.json`
+- No rate limiting or brute-force protection
+
+For production, add:
+- password hashing (bcrypt/argon2)
+- DB storage (not JSON file)
+- rate limiting
+- structured auth/session management
